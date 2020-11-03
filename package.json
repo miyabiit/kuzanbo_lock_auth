@@ -1,0 +1,26 @@
+{
+  "name": "kuzanbo_lock_auth",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/centrevillage/kuzanbo_lock_auth.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/centrevillage/kuzanbo_lock_auth/issues"
+  },
+  "homepage": "https://github.com/centrevillage/kuzanbo_lock_auth#readme",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "node-fetch": "^2.6.1",
+    "obniz": "^3.9.0"
+  }
+}
