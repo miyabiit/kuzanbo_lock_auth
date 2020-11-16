@@ -39,6 +39,7 @@ set :npm_env_variables, {}
 
 set :linked_dirs, %w{node_modules}
 set :linked_files, fetch(:linked_files, []).push('.env')
+set :linked_files, fetch(:linked_files, []).push('command.txt')
 
 set :node_env, (fetch(:node_env) || fetch(:stage))
 set :default_env, { node_env: fetch(:node_env) }
