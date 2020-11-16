@@ -42,6 +42,8 @@ set :linked_dirs, %w{node_modules}
 set :node_env, (fetch(:node_env) || fetch(:stage))
 set :default_env, { node_env: fetch(:node_env) }
 
+set :web_path, current_path
+
 # Default value for :scm is :git
 # set :scm, :git
 
@@ -70,22 +72,28 @@ namespace :deploy do
   desc 'Start application'
   task :start do
     on roles(:app) do
-      execute :forever, 'start',  'index.js'
+      within fetch(:web_path) do
+        execute :forever, 'start',  'index.js'
+      end
     end
   end
  
   desc 'Stop application'
   task :stop do
     on roles(:app) do
-      execute :forever, 'stopall'
+      within fetch(:web_path) do
+        execute :forever, 'stopall'
+      end
     end
   end
  
   desc 'Restart application'
   task :restart do
     on roles(:app), in: :sequence, wait: 5 do
-      execute :forever, 'stopall'
-      execute :forever, 'start', 'index.js'
+      within fetch(:web_path) do
+        execute :forever, 'stopall'
+        execute :forever, 'start', 'index.js'
+      end
     end
   end
   after :publishing, :restart
