@@ -54,13 +54,10 @@ obniz.onconnect = async function() {
         fs.readFile('command.txt', 'utf-8', (err, cmd_txt) => {
           if (err) {
             console.log('command.txt is not found');
-            obniz.plugin.send(["N".charCodeAt(0)]);
           } else {
             if (cmd_txt.startsWith('update on')) {
-              obniz.plugin.send(["O".charCodeAt(0)]);
+              obniz.plugin.send(["U".charCodeAt(0)]);
               console.log('version-up response');
-            } else {
-              obniz.plugin.send(["N".charCodeAt(0)]);
             }
           }
         });
