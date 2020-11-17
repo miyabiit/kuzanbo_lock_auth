@@ -11,7 +11,7 @@ var Obniz = require("obniz");
 const { URLSearchParams } = require('url');
 
 console.log(`device id = ${process.env.OBNIZ_DEVICE_ID}`)
-var obniz = new Obniz(process.env.OBNIZ_DEVICE_ID);
+var obniz = new Obniz(process.env.OBNIZ_DEVICE_ID, {reset_obniz_on_ws_disconnection: false});
 
 //// TODO: API認証
 //// ref: https://staging.minpakuin.jp/api/doc/v1/request/swagger
