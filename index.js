@@ -49,8 +49,8 @@ obniz.onconnect = async function() {
   obniz.plugin.onreceive = (data) => {
     //console.log(data);
     console.log(`onReceive, data = ${data}`);
-    if (data[0] == '$') { // command
-      if (data.length == 5 && data[1] == 'u' && data[2] == 'p' && data[3] == 'd' && data[4] == '?') { // receive version-up confirmation
+    if (data.length > 0 && data[0] == '$'.charCodeAt(0)) { // command
+      if (data.length == 5 && data[1] == 'u'.charCodeAt(0) && data[2] == 'p'.charCodeAt(0) && data[3] == 'd'.charCodeAt(0) && data[4] == '?'.charCodeAt(0)) { // receive version-up confirmation
         fs.readFile('command.txt', 'utf-8', (err, cmd_txt) => {
           if (err) {
             console.log('command.txt is not found');
