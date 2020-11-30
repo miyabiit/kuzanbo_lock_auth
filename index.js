@@ -2,6 +2,7 @@
 
 require('dotenv').config();
 const fs = require("fs");
+const puppeteer = require('puppeteer');
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 //var express = require('express');
@@ -12,6 +13,8 @@ const { URLSearchParams } = require('url');
 
 console.log(`device id = ${process.env.OBNIZ_DEVICE_ID}`)
 var obniz = new Obniz(process.env.OBNIZ_DEVICE_ID, {reset_obniz_on_ws_disconnection: false});
+
+let passwords = [];
 
 //// TODO: API認証
 //// ref: https://staging.minpakuin.jp/api/doc/v1/request/swagger
@@ -31,18 +34,49 @@ var obniz = new Obniz(process.env.OBNIZ_DEVICE_ID, {reset_obniz_on_ws_disconnect
 //    .catch((err) => console.error(err));
 //}
 
-//// (login) GET https://staging.minpakuin.jp/host/login
-//// (reserve page) GET https://staging.minpakuin.jp/host/reserves?canceled=false&checkin_from=2020-10-27&checkin_to=2020-10-27&order=checkin_asc
-//function fetchPasswordsByPage() {
-//  const params = new URLSearchParams();
-//  params.append('login_id', process.env.PASSWORD_SERVER_USER_ID);
-//  params.append('password', process.env.PASSWORD_SERVER_PASSWORD);
-//  fetch(process.env.PASSwORD_SERVER_URL + 'login', { method: 'POST', body: params })
-//    .then((res) => {
-//      console.log(res)
-//    })
-//    .catch((err) => console.error(err));
-//}
+// (login) GET https://staging.minpakuin.jp/host/login
+// (reserve page) GET https://staging.minpakuin.jp/host/reserves?canceled=false&checkin_from=2020-10-27&checkin_to=2020-10-27&order=checkin_asc
+function fetchPasswordsByPage() {
+  //const params = new URLSearchParams();
+  //params.append('login_id', process.env.PASSWORD_SERVER_USER_ID);
+  //params.append('password', process.env.PASSWORD_SERVER_PASSWORD);
+  //fetch(process.env.PASSWORD_SERVER_URL + 'login', { method: 'POST', body: params })
+  //  .then((res) => {
+  //    console.log(res)
+  //  })
+  //  .catch((err) => console.error(err));
+
+
+  (async () => {
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+    await page.goto(process.env.PASSWORD_SERVER_URL + 'login');
+    await page.type('input[name="login_id"]', process.env.PASSWORD_SERVER_USER_ID);
+    await page.type('input[name="password"]', process.env.PASSWORD_SERVER_PASSWORD);
+    page.click('button[type="submit"]');
+    await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
+    await page.goto(process.env.PASSWORD_SERVER_URL + 'reserves');
+    await page.waitFor(1000);
+    await page.screenshot({path: 'example.png'});
+    console.log('capture!')
+    let table_elem = await page.$('.c-table tbody');
+    let tr_elems = await table_elem.$$('tr');
+    passwords = [];
+    for (const elem of tr_elems) {
+      let td_elems = await elem.$$('td');
+      if (td_elems.length > 2) {
+        let td_e = td_elems[1];
+        passwords.push(await td_e.evaluate(e => e.innerText));
+      }
+    }
+    console.log('fetched passwords = ')
+    console.log(passwords)
+
+    await browser.close();
+  })();
+}
+
+fetchPasswordsByPage();
 
 console.log('server start')
 obniz.onconnect = async function() {
@@ -61,11 +95,10 @@ obniz.onconnect = async function() {
             }
           }
         });
+      } else if (data.length == 2 && data[1] == 'f'.charCodeAt(0)) { // fetch command
+        fetchPasswordsByPage();
       }
     } else {
-      // TODO: fetch
-      const passwords = ['012345', '000000', '999999'];
-      //console.log(passwords);
       for (const password of passwords) {
         let matched = true;
         if (password.length != data.length) {

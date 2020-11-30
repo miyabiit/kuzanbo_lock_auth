@@ -30,7 +30,7 @@ set :ssh_options, {
 }
 
 set :nvm_type, :user # or :system, depends on your nvm setup
-set :nvm_node, 'v8.9.4'
+set :nvm_node, 'v12.19.0'
 set :nvm_map_bins, %w{node npm forever}
 
 set :npm_flags, '--production --silent --no-progress'
