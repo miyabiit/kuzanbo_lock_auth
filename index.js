@@ -97,7 +97,7 @@ obniz.onconnect = async function() {
         });
       } else if (data.length == 2 && data[1] == 'f'.charCodeAt(0)) { // fetch command
         fetchPasswordsByPage();
-      } else if (data.length == 3 && data[1] == 'a'.charCodeAt(0) && data[2] == '?') { // ack
+      } else if (data.length == 3 && data[1] == 'a'.charCodeAt(0) && data[2] == '?'.charCodeAt(0)) { // ack
         obniz.plugin.send(["A".charCodeAt(0)]);
         conosole.log('ACK!');
       }
