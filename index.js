@@ -97,6 +97,8 @@ obniz.onconnect = async function() {
         });
       } else if (data.length == 2 && data[1] == 'f'.charCodeAt(0)) { // fetch command
         fetchPasswordsByPage();
+      } else if (data.length == 3 && data[1] == 'a'.charCodeAt(0) && data[2] == '?') { // ack
+        obniz.plugin.send(["A".charCodeAt(0)]);
       }
     } else {
       for (const password of passwords) {
