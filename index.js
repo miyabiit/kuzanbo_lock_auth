@@ -99,6 +99,7 @@ obniz.onconnect = async function() {
         fetchPasswordsByPage();
       } else if (data.length == 3 && data[1] == 'a'.charCodeAt(0) && data[2] == '?') { // ack
         obniz.plugin.send(["A".charCodeAt(0)]);
+        conosole.log('ACK!');
       }
     } else {
       for (const password of passwords) {
