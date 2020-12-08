@@ -3,6 +3,7 @@
 require('dotenv').config();
 const fs = require("fs");
 const puppeteer = require('puppeteer');
+const moment = require('moment');
 
 process.env.NODE_ENV = process.env.NODE_ENV || 'development';
 //var express = require('express');
@@ -55,19 +56,75 @@ function fetchPasswordsByPage() {
     await page.type('input[name="password"]', process.env.PASSWORD_SERVER_PASSWORD);
     page.click('button[type="submit"]');
     await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
-    await page.goto(process.env.PASSWORD_SERVER_URL + 'reserves');
-    await page.waitFor(1000);
-    await page.screenshot({path: 'example.png'});
-    console.log('capture!')
-    let table_elem = await page.$('.c-table tbody');
-    let tr_elems = await table_elem.$$('tr');
-    passwords = [];
-    for (const elem of tr_elems) {
-      let td_elems = await elem.$$('td');
-      if (td_elems.length > 2) {
-        let td_e = td_elems[1];
-        passwords.push(await td_e.evaluate(e => e.innerText));
+
+    const useJsonApi = true;
+    if (useJsonApi) {
+      const apiUrl = process.env.PASSWORD_SERVER_URL + 'reserve-api/list'
+      await page.setRequestInterception(true);
+      let targetDate = moment().subtract(7, 'days').format("YYYY-MM-DD"); // とりあえずチェックイン日が一週間前まで有効
+      let pageNumber = 1;
+      let pageCount = null
+
+      const fetchPasswords = async (targetDate, pageNumber) => {
+        page.removeAllListeners('request');
+        page.on('request', request => {
+          //console.log(`${request.url()} = ${apiUrl}`);
+          const overrides = {};
+          if (request.url() === apiUrl) {
+            overrides.method = 'POST';
+            overrides.headers = {
+              'Content-Type': 'application/json; charset=UTF-8',
+            };
+            // checkout_from パラメータがない
+            //overrides.postData = `{"checkout_from": "${targetDate}", "order": "checkin_asc", "page": ${pageNumber}}`;
+            overrides.postData = `{"checkin_from": "${targetDate}", "order": "checkin_asc", "page": ${pageNumber}}`;
+          }
+          request.continue(overrides);
+        });
+
+        await page.goto(apiUrl);
+
+        let content = await page.content(); 
+        let json = await page.evaluate(() =>  {
+            return JSON.parse(document.querySelector("body").innerText); 
+        }); 
+        //console.log('fetch by api')
+        //console.log(json);
+        let passwords = [];
+        if (!pageCount) {
+          pageCount = Math.ceil(parseInt(json.page_set.total) / parseInt(json.page_set.show_once));
+        }
+        if (json.reserves) {
+          for (const reserve of json.reserves) {
+            if (reserve.reserve_key) {
+              passwords.push(reserve.reserve_key);
+            }
+          }
+        }
+        return passwords;
+      };
+
+      let fetchedPasswords = await fetchPasswords(targetDate, pageNumber);
+
+      for (pageNumber = 2; pageNumber <= pageCount; ++pageNumber) {
+        fetchedPasswords = fetchedPasswords.concat(await fetchPasswords(targetDate, pageNumber));
       }
+
+      passwords = fetchedPasswords;
+    } else {
+      await page.goto(process.env.PASSWORD_SERVER_URL + 'reserves');
+      await page.waitFor(1000);
+      let table_elem = await page.$('.c-table tbody');
+      let tr_elems = await table_elem.$$('tr');
+      let fetchedPasswords = []
+      for (const elem of tr_elems) {
+        let td_elems = await elem.$$('td');
+        if (td_elems.length > 2) {
+          let td_e = td_elems[1];
+          fetchedPasswords.push(await td_e.evaluate(e => e.innerText));
+        }
+      }
+      passwords = fetchedPasswords;
     }
     console.log('fetched passwords = ')
     console.log(passwords)
