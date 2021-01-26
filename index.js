@@ -135,6 +135,35 @@ function fetchPasswordsByPage() {
 
 fetchPasswordsByPage();
 
+function convertStrToDataBytes(str) {
+  let bytes = [];
+  for (let i = 0; i < str.length; ++i) {
+    bytes.push(str.charCodeAt(i));
+  }
+  return bytes;
+}
+
+function parseCommand(line) {
+  if (line.startsWith('update on')) {
+    obniz.plugin.send(["U".charCodeAt(0)]);
+    console.log('version-up response');
+  } else if (line.startsWith('set ')) {
+    const words = line.split(' ');
+    const paramName = words[1];
+    if (paramName === 'SleepByNoActionMin') {
+      const value = parseInt(words[2]) * 60 * 1000;
+      const command = "$set:sleep_timeout=" + value;
+      obniz.plugin.send(convertStrToDataBytes(command));
+      console.log(command);
+    } else if (paramName === 'WakeupIntervalMin') {
+      const value = parseInt(words[2]) * 60 * 1000;
+      const command = "$set:wakeup_timeout=" + value;
+      obniz.plugin.send(convertStrToDataBytes(command));
+      console.log(command);
+    }
+  }
+}
+
 console.log('server start')
 obniz.onconnect = async function() {
   obniz.plugin.onreceive = (data) => {
@@ -146,9 +175,8 @@ obniz.onconnect = async function() {
           if (err) {
             console.log('command.txt is not found');
           } else {
-            if (cmd_txt.startsWith('update on')) {
-              obniz.plugin.send(["U".charCodeAt(0)]);
-              console.log('version-up response');
+            for (let line of cmd_txt.split("\n")) {
+              parseCommand(line);
             }
           }
         });
@@ -156,7 +184,7 @@ obniz.onconnect = async function() {
         fetchPasswordsByPage();
       } else if (data.length == 3 && data[1] == 'a'.charCodeAt(0) && data[2] == '?'.charCodeAt(0)) { // ack
         obniz.plugin.send(["A".charCodeAt(0)]);
-        conosole.log('ACK!');
+        console.log('ACK!');
       }
     } else {
       for (const password of passwords) {
