@@ -38,16 +38,6 @@ let passwords = [];
 // (login) GET https://staging.minpakuin.jp/host/login
 // (reserve page) GET https://staging.minpakuin.jp/host/reserves?canceled=false&checkin_from=2020-10-27&checkin_to=2020-10-27&order=checkin_asc
 function fetchPasswordsByPage() {
-  //const params = new URLSearchParams();
-  //params.append('login_id', process.env.PASSWORD_SERVER_USER_ID);
-  //params.append('password', process.env.PASSWORD_SERVER_PASSWORD);
-  //fetch(process.env.PASSWORD_SERVER_URL + 'login', { method: 'POST', body: params })
-  //  .then((res) => {
-  //    console.log(res)
-  //  })
-  //  .catch((err) => console.error(err));
-
-
   (async () => {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
@@ -57,75 +47,80 @@ function fetchPasswordsByPage() {
     page.click('button[type="submit"]');
     await page.waitForNavigation({ waitUntil: 'domcontentloaded' });
 
-    const useJsonApi = true;
-    if (useJsonApi) {
-      const apiUrl = process.env.PASSWORD_SERVER_URL + 'reserve-api/list'
-      await page.setRequestInterception(true);
-      let targetDate = moment().subtract(7, 'days').format("YYYY-MM-DD"); // とりあえずチェックイン日が一週間前まで有効
-      let pageNumber = 1;
-      let pageCount = null
+    const apiUrl = process.env.PASSWORD_SERVER_URL + 'reserve-api/list'
+    await page.setRequestInterception(true);
+    let targetDate = moment().format("YYYY-MM-DD");
+    let pageNumber = 1;
 
-      const fetchPasswords = async (targetDate, pageNumber) => {
-        page.removeAllListeners('request');
-        page.on('request', request => {
-          //console.log(`${request.url()} = ${apiUrl}`);
-          const overrides = {};
-          if (request.url() === apiUrl) {
-            overrides.method = 'POST';
-            overrides.headers = {
-              'Content-Type': 'application/json; charset=UTF-8',
-            };
-            // checkout_from パラメータがない
-            //overrides.postData = `{"checkout_from": "${targetDate}", "order": "checkin_asc", "page": ${pageNumber}}`;
-            overrides.postData = `{"checkin_from": "${targetDate}", "order": "checkin_asc", "page": ${pageNumber}}`;
-          }
-          request.continue(overrides);
-        });
-
-        await page.goto(apiUrl);
-
-        let content = await page.content(); 
-        let json = await page.evaluate(() =>  {
-            return JSON.parse(document.querySelector("body").innerText); 
-        }); 
-        //console.log('fetch by api')
-        //console.log(json);
-        let passwords = [];
-        if (!pageCount) {
-          pageCount = Math.ceil(parseInt(json.page_set.total) / parseInt(json.page_set.show_once));
+    const fetchPasswords = async (targetDate, pageNumber) => {
+      let pageCount = null;
+      page.removeAllListeners('request');
+      page.on('request', request => {
+        //console.log(`${request.url()} = ${apiUrl}`);
+        const overrides = {};
+        if (request.url() === apiUrl) {
+          overrides.method = 'POST';
+          overrides.headers = {
+            'Content-Type': 'application/json; charset=UTF-8',
+          };
+          // checkout_from パラメータがない
+          overrides.postData = `{"checkin_to": "${targetDate}", "order": "checkout_desc", "page": ${pageNumber}}`;
         }
-        if (json.reserves) {
-          for (const reserve of json.reserves) {
-            if (reserve.reserve_key) {
-              passwords.push(reserve.reserve_key);
+        request.continue(overrides);
+      });
+
+      await page.goto(apiUrl);
+
+      let content = await page.content(); 
+      let json = await page.evaluate(() =>  {
+          return JSON.parse(document.querySelector("body").innerText); 
+      }); 
+      //console.log('fetch by api')
+      //console.log(json);
+      let passwords = [];
+      pageCount = Math.ceil(parseInt(json.page_set.total) / parseInt(json.page_set.show_once));
+      let isEnd = false;
+      if (json.reserves) {
+        for (const reserve of json.reserves) {
+          if (reserve.rooms) {
+            for (const room of reserve.rooms) {
+              if (room.key_no) {
+                const matched = room.key_no.match(/\d+/);
+                if (matched) {
+                  const pswd = matched[0];
+                  if (passwords.indexOf(pswd) === -1) {
+                    passwords.push(pswd);
+                  }
+                }
+              }
+            }
+          }
+          if (!isEnd && reserve.checkout) {
+            const checkout = reserve.checkout.toString();
+            let checkoutDate = moment(checkout, 'YYYY/MM/DD');
+            if (moment(targetDate).isAfter(checkoutDate)) {
+              isEnd = true;
             }
           }
         }
-        return passwords;
-      };
-
-      let fetchedPasswords = await fetchPasswords(targetDate, pageNumber);
-
-      for (pageNumber = 2; pageNumber <= pageCount; ++pageNumber) {
-        fetchedPasswords = fetchedPasswords.concat(await fetchPasswords(targetDate, pageNumber));
       }
+      return {passwords: passwords, isEnd: isEnd, pageCount: pageCount};
+    };
 
-      passwords = fetchedPasswords;
-    } else {
-      await page.goto(process.env.PASSWORD_SERVER_URL + 'reserves');
-      await page.waitFor(1000);
-      let table_elem = await page.$('.c-table tbody');
-      let tr_elems = await table_elem.$$('tr');
-      let fetchedPasswords = []
-      for (const elem of tr_elems) {
-        let td_elems = await elem.$$('td');
-        if (td_elems.length > 2) {
-          let td_e = td_elems[1];
-          fetchedPasswords.push(await td_e.evaluate(e => e.innerText));
-        }
+    const firstResult = await fetchPasswords(targetDate, pageNumber);
+    let fetchedPasswords = firstResult.passwords;
+    const pageCount = firstResult.pageCount;
+    for (pageNumber = 2; pageNumber <= pageCount; ++pageNumber) {
+      const result = await fetchPasswords(targetDate, pageNumber)
+      const resultPasswords = result.passwords;
+      fetchedPasswords = fetchedPasswords.concat(resultPasswords);
+      if (result.isEnd) {
+        break;
       }
-      passwords = fetchedPasswords;
     }
+
+    passwords = fetchedPasswords;
+
     console.log('fetched passwords = ')
     console.log(passwords)
 
