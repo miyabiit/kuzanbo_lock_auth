@@ -128,7 +128,47 @@ function fetchPasswordsByPage() {
   })();
 }
 
+let fetchIntervalMin = 60;
+let scheduleTimer = null;
+
+function parseSchedule(line) {
+  if (line.startsWith('set ')) {
+    const words = line.split(' ');
+    const paramName = words[1];
+    if (paramName === 'FetchIntervalMin') {
+      const value = parseInt(words[2]);
+      if (3 <= value && value <= (60*24)) { // 最大1日
+        if (value !== fetchIntervalMin) {
+          fetchIntervalMin = value;
+          console.log(`change FetchIntervalMin = ${fetchIntervalMin}`);
+        }
+      } else {
+        console.log('FetchIntervalMin is out of range.')
+      }
+    }
+  }
+}
+
+function scheduleHandler() {
+  fetchPasswordsByPage();
+  scheduleFetching();
+}
+
+function scheduleFetching() {
+  fs.readFile('schedule.txt', 'utf-8', (err, schedule_txt) => {
+    if (err) {
+      console.log('schedule.txt is not found. schedule is invalidated.');
+    } else {
+      for (let line of schedule_txt.split("\n")) {
+        parseSchedule(line);
+      }
+      scheduleTimer = setTimeout(scheduleHandler, fetchIntervalMin * 60 * 1000);
+    }
+  });
+}
+
 fetchPasswordsByPage();
+scheduleFetching();
 
 function convertStrToDataBytes(str) {
   let bytes = [];
