@@ -82,6 +82,14 @@ function fetchPasswordsByPage() {
       let isEnd = false;
       if (json.reserves) {
         for (const reserve of json.reserves) {
+          if (!isEnd && reserve.checkout) {
+            const checkout = reserve.checkout.toString();
+            let checkoutDate = moment(checkout, 'YYYY/MM/DD');
+            if (moment(targetDate).isAfter(checkoutDate)) {
+              isEnd = true;
+              break;
+            }
+          }
           if (reserve.rooms) {
             for (const room of reserve.rooms) {
               if (room.key_no) {
@@ -93,13 +101,6 @@ function fetchPasswordsByPage() {
                   }
                 }
               }
-            }
-          }
-          if (!isEnd && reserve.checkout) {
-            const checkout = reserve.checkout.toString();
-            let checkoutDate = moment(checkout, 'YYYY/MM/DD');
-            if (moment(targetDate).isAfter(checkoutDate)) {
-              isEnd = true;
             }
           }
         }
