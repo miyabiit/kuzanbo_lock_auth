@@ -13,7 +13,8 @@ var Obniz = require("obniz");
 const { URLSearchParams } = require('url');
 
 console.log(`device id = ${process.env.OBNIZ_DEVICE_ID}`)
-var obniz = new Obniz(process.env.OBNIZ_DEVICE_ID, {reset_obniz_on_ws_disconnection: false});
+const deviceIds = process.env.OBNIZ_DEVICE_ID.split(',')
+const devices = deviceIds.map(id => new Obniz(id, {reset_obniz_on_ws_disconnection: false}))
 
 let passwords = [];
 
@@ -180,68 +181,76 @@ function convertStrToDataBytes(str) {
 }
 
 function parseCommand(line) {
-  if (line.startsWith('update on')) {
-    obniz.plugin.send(["U".charCodeAt(0)]);
-    console.log('version-up response');
-  } else if (line.startsWith('set ')) {
-    const words = line.split(' ');
-    const paramName = words[1];
-    if (paramName === 'SleepByNoActionMin') {
-      const value = parseInt(words[2]) * 60 * 1000;
-      const command = "$set:sleep_timeout=" + value;
-      obniz.plugin.send(convertStrToDataBytes(command));
-      console.log(command);
-    } else if (paramName === 'WakeupIntervalMin') {
-      const value = parseInt(words[2]) * 60 * 1000;
-      const command = "$set:wakeup_timeout=" + value;
-      obniz.plugin.send(convertStrToDataBytes(command));
-      console.log(command);
+  for (const device of devices) {
+    if (line.startsWith('update on')) {
+      device.plugin.send(["U".charCodeAt(0)]);
+      console.log('version-up response');
+    } else if (line.startsWith('set ')) {
+      const words = line.split(' ');
+      const paramName = words[1];
+      if (paramName === 'SleepByNoActionMin') {
+        const value = parseInt(words[2]) * 60 * 1000;
+        const command = "$set:sleep_timeout=" + value;
+        device.plugin.send(convertStrToDataBytes(command));
+        console.log(command);
+      } else if (paramName === 'WakeupIntervalMin') {
+        const value = parseInt(words[2]) * 60 * 1000;
+        const command = "$set:wakeup_timeout=" + value;
+        device.plugin.send(convertStrToDataBytes(command));
+        console.log(command);
+      }
     }
   }
 }
 
 console.log('server start')
-obniz.onconnect = async function() {
-  obniz.plugin.onreceive = (data) => {
-    //console.log(data);
-    console.log(`onReceive, data = ${data}`);
-    if (data.length > 0 && data[0] == '$'.charCodeAt(0)) { // command
-      if (data.length == 5 && data[1] == 'u'.charCodeAt(0) && data[2] == 'p'.charCodeAt(0) && data[3] == 'd'.charCodeAt(0) && data[4] == '?'.charCodeAt(0)) { // receive version-up confirmation
-        fs.readFile('command.txt', 'utf-8', (err, cmd_txt) => {
-          if (err) {
-            console.log('command.txt is not found');
-          } else {
-            for (let line of cmd_txt.split("\n")) {
-              parseCommand(line);
+
+function setupDevice(device) {
+  device.onconnect = async function() {
+    device.plugin.onreceive = (data) => {
+      //console.log(data);
+      console.log(`onReceive, data = ${data}`);
+      if (data.length > 0 && data[0] == '$'.charCodeAt(0)) { // command
+        if (data.length == 5 && data[1] == 'u'.charCodeAt(0) && data[2] == 'p'.charCodeAt(0) && data[3] == 'd'.charCodeAt(0) && data[4] == '?'.charCodeAt(0)) { // receive version-up confirmation
+          fs.readFile('command.txt', 'utf-8', (err, cmd_txt) => {
+            if (err) {
+              console.log('command.txt is not found');
+            } else {
+              for (let line of cmd_txt.split("\n")) {
+                parseCommand(line);
+              }
+            }
+          });
+        } else if (data.length == 2 && data[1] == 'f'.charCodeAt(0)) { // fetch command
+          fetchPasswordsByPage();
+        } else if (data.length == 3 && data[1] == 'a'.charCodeAt(0) && data[2] == '?'.charCodeAt(0)) { // ack
+          device.plugin.send(["A".charCodeAt(0)]);
+          console.log('ACK!');
+        }
+      } else {
+        for (const password of passwords) {
+          let matched = true;
+          if (password.length != data.length) {
+            continue;
+          }
+          for (let i = 0; i < data.length; ++i) {
+            if (data[i] != password.charCodeAt(i)) {
+              matched = false;
+              break;
             }
           }
-        });
-      } else if (data.length == 2 && data[1] == 'f'.charCodeAt(0)) { // fetch command
-        fetchPasswordsByPage();
-      } else if (data.length == 3 && data[1] == 'a'.charCodeAt(0) && data[2] == '?'.charCodeAt(0)) { // ack
-        obniz.plugin.send(["A".charCodeAt(0)]);
-        console.log('ACK!');
-      }
-    } else {
-      for (const password of passwords) {
-        let matched = true;
-        if (password.length != data.length) {
-          continue;
-        }
-        for (let i = 0; i < data.length; ++i) {
-          if (data[i] != password.charCodeAt(i)) {
-            matched = false;
-            break;
+          if (matched) {
+            console.log('MATCH')
+            device.plugin.send(["O".charCodeAt(0)]);
+            return;
           }
         }
-        if (matched) {
-          console.log('MATCH')
-          obniz.plugin.send(["O".charCodeAt(0)]);
-          return;
-        }
+        console.log('UNMATCH')
+        device.plugin.send(["N".charCodeAt(0)]);            
       }
-      console.log('UNMATCH')
-      obniz.plugin.send(["N".charCodeAt(0)]);            
-    }
+    };
   };
-};
+}
+
+for (const device of devices) { setupDevice(device) }
+
